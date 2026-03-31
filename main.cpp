@@ -42,31 +42,7 @@ bool isBipartite(int start, vector<int>& component) {
 
 // For non-bipartite component, mark nodes in odd cycles
 void markOddCycleNodes(const vector<int>& component, vector<bool>& in_odd) {
-    // Find all conflict edges (edges between nodes of same color)
-    vector<pair<int, int>> conflict_edges;
-
     set<int> comp_set(component.begin(), component.end());
-
-    for (int u : component) {
-        for (int v : graph[u]) {
-            if (u < v && color[u] == color[v] && comp_set.count(v)) {
-                conflict_edges.push_back({u, v});
-            }
-        }
-    }
-
-    // If there are conflict edges, the component has odd cycles
-    // Mark all nodes that are "close" to conflict edges
-    // Simple heuristic: mark all nodes in non-bipartite component with degree >= 2
-    // This is conservative but should be more accurate
-
-    // Actually, let's use a better approach:
-    // Do BFS from each conflict edge and mark all nodes within a certain distance
-    // Or simpler: mark all nodes in the same biconnected component as the conflict edge
-
-    // For now, let's use a simple heuristic:
-    // A node is in an odd cycle if it's in a non-bipartite component AND
-    // it can reach a conflict edge within some small distance
 
     for (int node : component) {
         if (graph[node].size() <= 1) {
@@ -74,30 +50,20 @@ void markOddCycleNodes(const vector<int>& component, vector<bool>& in_odd) {
             continue;
         }
 
-        // Check if node is involved in a conflict edge or adjacent to one
+        // Check if any two neighbors have the same color
+        // This indicates node is likely in an odd cycle
         bool found = false;
+        for (int i = 0; i < (int)graph[node].size() && !found; i++) {
+            int u = graph[node][i];
+            if (!comp_set.count(u)) continue;
 
-        // Check if node itself is part of a conflict edge
-        for (int neighbor : graph[node]) {
-            if (comp_set.count(neighbor) && color[node] == color[neighbor]) {
-                found = true;
-                break;
-            }
-        }
+            for (int j = i + 1; j < (int)graph[node].size() && !found; j++) {
+                int v = graph[node][j];
+                if (!comp_set.count(v)) continue;
 
-        // If not directly involved, check if any neighbor is involved in a conflict
-        if (!found) {
-            for (int neighbor : graph[node]) {
-                if (!comp_set.count(neighbor)) continue;
-
-                for (int neighbor2 : graph[neighbor]) {
-                    if (comp_set.count(neighbor2) && color[neighbor] == color[neighbor2]) {
-                        found = true;
-                        break;
-                    }
+                if (color[u] == color[v]) {
+                    found = true;
                 }
-
-                if (found) break;
             }
         }
 
