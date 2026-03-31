@@ -7,55 +7,67 @@ using namespace std;
 
 const int MAXN = 100005;
 vector<int> graph[MAXN];
+int color[MAXN];
+bool in_odd_cycle[MAXN];
+bool visited[MAXN];
 int n, m;
 
-// Check if there's an odd-length path from start to end, avoiding the node 'avoid'
-bool hasOddPath(int start, int end, int avoid) {
-    if (start == avoid || end == avoid) return false;
-
-    int dist[MAXN];
-    memset(dist, -1, sizeof(dist));
-
+// Check if component starting from 'start' is bipartite
+// Mark all nodes in the component
+bool isBipartite(int start, vector<int>& component) {
     queue<int> q;
     q.push(start);
-    dist[start] = 0;
+    color[start] = 0;
+    visited[start] = true;
+    component.push_back(start);
+    bool is_bipartite = true;
 
     while (!q.empty()) {
         int u = q.front();
         q.pop();
 
-        if (u == end && dist[u] % 2 == 1) {
-            return true;
-        }
-
         for (int v : graph[u]) {
-            if (v != avoid && dist[v] == -1) {
-                dist[v] = dist[u] + 1;
+            if (!visited[v]) {
+                visited[v] = true;
+                color[v] = 1 - color[u];
+                component.push_back(v);
                 q.push(v);
+            } else if (color[v] == color[u]) {
+                is_bipartite = false;
             }
         }
     }
 
-    return dist[end] != -1 && dist[end] % 2 == 1;
+    return is_bipartite;
 }
 
-bool isInOddCycle(int node) {
-    // Check all pairs of neighbors
-    vector<int>& neighbors = graph[node];
+// For a non-bipartite component, mark which nodes are in odd cycles
+void markOddCycleNodes(const vector<int>& component) {
+    // For each node in the component, check if it's in an odd cycle
+    for (int node : component) {
+        // A node with degree <= 1 cannot be in a cycle
+        if (graph[node].size() <= 1) {
+            continue;
+        }
 
-    for (size_t i = 0; i < neighbors.size(); i++) {
-        for (size_t j = i + 1; j < neighbors.size(); j++) {
-            int u = neighbors[i];
-            int w = neighbors[j];
-
-            // Check if there's an odd path from u to w not going through 'node'
-            if (hasOddPath(u, w, node)) {
-                return true;
+        // Check if there's an odd cycle containing this node
+        // by checking if any two neighbors have the same color
+        bool found = false;
+        for (int i = 0; i < (int)graph[node].size() && !found; i++) {
+            for (int j = i + 1; j < (int)graph[node].size() && !found; j++) {
+                int u = graph[node][i];
+                int v = graph[node][j];
+                // If u and v have the same color, then node-u-...-v-node forms odd cycle
+                if (color[u] == color[v]) {
+                    found = true;
+                }
             }
         }
-    }
 
-    return false;
+        if (found) {
+            in_odd_cycle[node] = true;
+        }
+    }
 }
 
 int main() {
@@ -71,10 +83,26 @@ int main() {
         graph[y].push_back(x);
     }
 
-    int answer = 0;
+    memset(visited, false, sizeof(visited));
+    memset(in_odd_cycle, false, sizeof(in_odd_cycle));
 
+    // Process each connected component
     for (int i = 1; i <= n; i++) {
-        if (!isInOddCycle(i)) {
+        if (!visited[i]) {
+            vector<int> component;
+            bool is_bip = isBipartite(i, component);
+
+            if (!is_bip) {
+                // Component has odd cycles, mark which nodes are in them
+                markOddCycleNodes(component);
+            }
+            // If bipartite, no nodes are in odd cycles (already false by default)
+        }
+    }
+
+    int answer = 0;
+    for (int i = 1; i <= n; i++) {
+        if (!in_odd_cycle[i]) {
             answer++;
         }
     }
