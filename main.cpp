@@ -2,17 +2,19 @@
 #include <vector>
 #include <queue>
 #include <cstring>
-#include <set>
+#include <unordered_set>
 
 using namespace std;
 
 const int MAXN = 100005;
+const int DEGREE_THRESHOLD = 50;  // Use full check for degree <= this
+
 vector<int> graph[MAXN];
 int color[MAXN];
 bool visited[MAXN];
 int n, m;
 
-// Check if component is bipartite and mark all nodes
+// Check if component is bipartite
 bool isBipartite(int start, vector<int>& component) {
     queue<int> q;
     q.push(start);
@@ -40,34 +42,78 @@ bool isBipartite(int start, vector<int>& component) {
     return is_bipartite;
 }
 
-// For non-bipartite component, mark nodes in odd cycles
-void markOddCycleNodes(const vector<int>& component, vector<bool>& in_odd) {
-    set<int> comp_set(component.begin(), component.end());
+// Fast path check with BFS
+bool hasOddPath(int start, int end, int avoid) {
+    if (start == avoid || end == avoid) return false;
 
-    for (int node : component) {
-        if (graph[node].size() <= 1) {
-            in_odd[node] = false;
-            continue;
+    static int dist[MAXN];
+    static bool vis[MAXN];
+
+    fill(vis, vis + n + 1, false);
+    fill(dist, dist + n + 1, -1);
+
+    queue<int> q;
+    q.push(start);
+    dist[start] = 0;
+    vis[start] = true;
+
+    while (!q.empty()) {
+        int u = q.front();
+        q.pop();
+
+        if (u == end) {
+            return dist[end] % 2 == 1;
         }
 
-        // Check if any two neighbors have the same color
-        // This indicates node is likely in an odd cycle
-        bool found = false;
-        for (int i = 0; i < (int)graph[node].size() && !found; i++) {
-            int u = graph[node][i];
-            if (!comp_set.count(u)) continue;
+        for (int v : graph[u]) {
+            if (!vis[v] && v != avoid) {
+                vis[v] = true;
+                dist[v] = dist[u] + 1;
+                q.push(v);
+            }
+        }
+    }
 
-            for (int j = i + 1; j < (int)graph[node].size() && !found; j++) {
+    return false;
+}
+
+// Check if node is in odd cycle
+bool isInOddCycle(int node) {
+    if (graph[node].size() <= 1) return false;
+
+    // For low-degree nodes, do full check
+    if (graph[node].size() <= DEGREE_THRESHOLD) {
+        for (size_t i = 0; i < graph[node].size(); i++) {
+            for (size_t j = i + 1; j < graph[node].size(); j++) {
+                int u = graph[node][i];
                 int v = graph[node][j];
-                if (!comp_set.count(v)) continue;
 
-                if (color[u] == color[v]) {
-                    found = true;
+                if (hasOddPath(u, v, node)) {
+                    return true;
                 }
             }
         }
+        return false;
+    }
 
-        in_odd[node] = found;
+    // For high-degree nodes, use heuristic (same color neighbors)
+    for (size_t i = 0; i < graph[node].size(); i++) {
+        for (size_t j = i + 1; j < graph[node].size(); j++) {
+            int u = graph[node][i];
+            int v = graph[node][j];
+
+            if (color[u] == color[v]) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+void markOddCycleNodes(const vector<int>& component, vector<bool>& in_odd) {
+    for (int node : component) {
+        in_odd[node] = isInOddCycle(node);
     }
 }
 
