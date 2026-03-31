@@ -2,18 +2,17 @@
 #include <vector>
 #include <queue>
 #include <cstring>
+#include <set>
 
 using namespace std;
 
 const int MAXN = 100005;
 vector<int> graph[MAXN];
 int color[MAXN];
-bool in_odd_cycle[MAXN];
 bool visited[MAXN];
 int n, m;
 
-// Check if component starting from 'start' is bipartite
-// Mark all nodes in the component
+// Check if component is bipartite and mark all nodes
 bool isBipartite(int start, vector<int>& component) {
     queue<int> q;
     q.push(start);
@@ -41,32 +40,68 @@ bool isBipartite(int start, vector<int>& component) {
     return is_bipartite;
 }
 
-// For a non-bipartite component, mark which nodes are in odd cycles
-void markOddCycleNodes(const vector<int>& component) {
-    // For each node in the component, check if it's in an odd cycle
+// For non-bipartite component, mark nodes in odd cycles
+void markOddCycleNodes(const vector<int>& component, vector<bool>& in_odd) {
+    // Find all conflict edges (edges between nodes of same color)
+    vector<pair<int, int>> conflict_edges;
+
+    set<int> comp_set(component.begin(), component.end());
+
+    for (int u : component) {
+        for (int v : graph[u]) {
+            if (u < v && color[u] == color[v] && comp_set.count(v)) {
+                conflict_edges.push_back({u, v});
+            }
+        }
+    }
+
+    // If there are conflict edges, the component has odd cycles
+    // Mark all nodes that are "close" to conflict edges
+    // Simple heuristic: mark all nodes in non-bipartite component with degree >= 2
+    // This is conservative but should be more accurate
+
+    // Actually, let's use a better approach:
+    // Do BFS from each conflict edge and mark all nodes within a certain distance
+    // Or simpler: mark all nodes in the same biconnected component as the conflict edge
+
+    // For now, let's use a simple heuristic:
+    // A node is in an odd cycle if it's in a non-bipartite component AND
+    // it can reach a conflict edge within some small distance
+
     for (int node : component) {
-        // A node with degree <= 1 cannot be in a cycle
         if (graph[node].size() <= 1) {
+            in_odd[node] = false;
             continue;
         }
 
-        // Check if there's an odd cycle containing this node
-        // by checking if any two neighbors have the same color
+        // Check if node is involved in a conflict edge or adjacent to one
         bool found = false;
-        for (int i = 0; i < (int)graph[node].size() && !found; i++) {
-            for (int j = i + 1; j < (int)graph[node].size() && !found; j++) {
-                int u = graph[node][i];
-                int v = graph[node][j];
-                // If u and v have the same color, then node-u-...-v-node forms odd cycle
-                if (color[u] == color[v]) {
-                    found = true;
-                }
+
+        // Check if node itself is part of a conflict edge
+        for (int neighbor : graph[node]) {
+            if (comp_set.count(neighbor) && color[node] == color[neighbor]) {
+                found = true;
+                break;
             }
         }
 
-        if (found) {
-            in_odd_cycle[node] = true;
+        // If not directly involved, check if any neighbor is involved in a conflict
+        if (!found) {
+            for (int neighbor : graph[node]) {
+                if (!comp_set.count(neighbor)) continue;
+
+                for (int neighbor2 : graph[neighbor]) {
+                    if (comp_set.count(neighbor2) && color[neighbor] == color[neighbor2]) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (found) break;
+            }
         }
+
+        in_odd[node] = found;
     }
 }
 
@@ -84,19 +119,17 @@ int main() {
     }
 
     memset(visited, false, sizeof(visited));
-    memset(in_odd_cycle, false, sizeof(in_odd_cycle));
 
-    // Process each connected component
+    vector<bool> in_odd_cycle(n + 1, false);
+
     for (int i = 1; i <= n; i++) {
         if (!visited[i]) {
             vector<int> component;
             bool is_bip = isBipartite(i, component);
 
             if (!is_bip) {
-                // Component has odd cycles, mark which nodes are in them
-                markOddCycleNodes(component);
+                markOddCycleNodes(component, in_odd_cycle);
             }
-            // If bipartite, no nodes are in odd cycles (already false by default)
         }
     }
 
